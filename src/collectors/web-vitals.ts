@@ -1,5 +1,7 @@
 import { addMetric } from '../store';
 import { WebVitalMetric } from '../types';
+import { shouldKeepWebVital } from '../filter';
+import { getCurrentRoute } from '../context';
 
 type MetricType = 'LCP' | 'FID' | 'CLS';
 
@@ -16,13 +18,17 @@ function getRating(type: MetricType, value: number): 'good' | 'needs-improvement
 }
 
 function recordMetric(type: MetricType, value: number): void {
+  const route = getCurrentRoute();
   const metric: WebVitalMetric = {
     type,
     value,
     timestamp: Date.now(),
     rating: getRating(type, value),
+    route,
   };
-  addMetric(metric);
+  if (shouldKeepWebVital(metric)) {
+    addMetric(metric);
+  }
 }
 
 function observeLCP(): void {
@@ -84,7 +90,10 @@ function observeCLS(): void {
           sessionStartTime = now;
         }
 
-        if (now - sessionStartTime > SESSION_LIMIT || now - (sessionEntries[sessionEntries.length - 1]?.startTime ?? now) > SESSION_GAP) {
+        if (
+          now - sessionStartTime > SESSION_LIMIT ||
+          now - (sessionEntries[sessionEntries.length - 1]?.startTime ?? now) > SESSION_GAP
+        ) {
           if (sessionValue > clsValue) {
             clsValue = sessionValue;
           }

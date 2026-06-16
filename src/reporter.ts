@@ -1,7 +1,7 @@
 import { getConfig } from './config';
-import { getContext } from './context';
+import { getContext, getSession, getStayDuration } from './context';
 import { drainMetrics, getBufferSize } from './store';
-import { savePendingPayload, drainPendingPayloads, isOnline } from './offline';
+import { appendPendingPayload, peekFirstPending, shiftFirstPending, getPendingCount, isOnline } from './offline';
 import { ReportPayload } from './types';
 
 let timerId: ReturnType<typeof setInterval> | null = null;
@@ -30,18 +30,38 @@ function sendOnePayload(payload: ReportPayload): boolean {
   return false;
 }
 
-function send(payload: ReportPayload): void {
+function sendOrPersist(payload: ReportPayload): void {
   const success = sendOnePayload(payload);
   if (!success) {
-    savePendingPayload(payload);
+    appendPendingPayload(payload);
   }
 }
 
+function buildPayload(metrics: ReportPayload['metrics']): ReportPayload {
+  const config = getConfig();
+  return {
+    appName: config.appName,
+    timestamp: Date.now(),
+    session: getSession(),
+    context: getContext(),
+    stayDuration: getStayDuration(),
+    metrics,
+  };
+}
+
 function retryPendingPayloads(): void {
-  const pending = drainPendingPayloads();
-  for (const payload of pending) {
-    if (!sendOnePayload(payload)) {
-      savePendingPayload(payload);
+  const maxRetriesPerCycle = 10;
+  let retried = 0;
+
+  while (retried < maxRetriesPerCycle && getPendingCount() > 0 && isOnline()) {
+    const payload = peekFirstPending();
+    if (!payload) break;
+
+    const success = sendOnePayload(payload);
+    if (success) {
+      shiftFirstPending();
+      retried++;
+    } else {
       break;
     }
   }
@@ -53,17 +73,10 @@ function flush(): void {
     return;
   }
 
-  const config = getConfig();
   const metrics = drainMetrics();
+  const payload = buildPayload(metrics);
 
-  const payload: ReportPayload = {
-    appName: config.appName,
-    timestamp: Date.now(),
-    context: getContext(),
-    metrics,
-  };
-
-  send(payload);
+  sendOrPersist(payload);
   retryPendingPayloads();
 }
 

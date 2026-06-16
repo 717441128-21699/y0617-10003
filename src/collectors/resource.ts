@@ -1,12 +1,17 @@
 import { addMetric } from '../store';
 import { ResourceMetric } from '../types';
+import { shouldKeepResource } from '../filter';
+import { getCurrentRoute } from '../context';
 
-const TARGET_TYPES = new Set(['script', 'link', 'img']);
-
-function extractResourceEntry(entry: PerformanceResourceTiming): ResourceMetric | null {
+function extractResourceEntry(entry: PerformanceResourceTiming, route: string): ResourceMetric | null {
   const initiatorType = entry.initiatorType;
 
-  if (initiatorType === 'script' || initiatorType === 'link' || initiatorType === 'img' || initiatorType === 'css') {
+  if (
+    initiatorType === 'script' ||
+    initiatorType === 'link' ||
+    initiatorType === 'img' ||
+    initiatorType === 'css'
+  ) {
     return {
       name: entry.name,
       initiatorType,
@@ -14,6 +19,7 @@ function extractResourceEntry(entry: PerformanceResourceTiming): ResourceMetric 
       transferSize: entry.transferSize,
       startTime: entry.startTime,
       protocol: entry.nextHopProtocol || '',
+      route,
     };
   }
 
@@ -21,10 +27,11 @@ function extractResourceEntry(entry: PerformanceResourceTiming): ResourceMetric 
 }
 
 function recordExistingResources(): void {
+  const route = getCurrentRoute();
   const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
   for (const entry of entries) {
-    const metric = extractResourceEntry(entry);
-    if (metric) {
+    const metric = extractResourceEntry(entry, route);
+    if (metric && shouldKeepResource(metric)) {
       addMetric(metric);
     }
   }
@@ -33,10 +40,11 @@ function recordExistingResources(): void {
 function observeNewResources(): void {
   try {
     const po = new PerformanceObserver((entryList) => {
+      const route = getCurrentRoute();
       const entries = entryList.getEntries() as PerformanceResourceTiming[];
       for (const entry of entries) {
-        const metric = extractResourceEntry(entry);
-        if (metric) {
+        const metric = extractResourceEntry(entry, route);
+        if (metric && shouldKeepResource(metric)) {
           addMetric(metric);
         }
       }

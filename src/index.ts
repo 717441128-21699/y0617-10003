@@ -1,15 +1,18 @@
 import { setConfig, shouldSample } from './config';
+import { initSession } from './context';
 import { collectWebVitals } from './collectors/web-vitals';
 import { collectResources } from './collectors/resource';
 import { collectErrors } from './collectors/error';
 import { trackEvent, TrackEventOptions } from './collectors/custom';
 import { startReporter, stopReporter } from './reporter';
 import { setUser, setRoute, setTags, watchRouteChanges } from './context';
-import { PerfMonitorConfig } from './types';
+import { PerfMonitorConfig, FilterConfig, StackProcessor } from './types';
 
 let started = false;
 
-export function init(options: Partial<PerfMonitorConfig> & { appName: string; reportUrl: string }): void {
+export function init(
+  options: Partial<PerfMonitorConfig> & { appName: string; reportUrl: string },
+): void {
   if (started) return;
 
   setConfig(options);
@@ -18,6 +21,7 @@ export function init(options: Partial<PerfMonitorConfig> & { appName: string; re
 
   started = true;
 
+  initSession();
   watchRouteChanges();
   collectErrors();
   collectWebVitals();
@@ -34,5 +38,22 @@ export function destroy(): void {
 export { setConfig, getConfig } from './config';
 export { setUser, setRoute, setTags } from './context';
 export { trackEvent } from './collectors/custom';
-export { PerfMonitorConfig, WebVitalMetric, ResourceMetric, ErrorMetric, CustomMetric, ContextInfo, UserInfo } from './types';
+export {
+  PerfMonitorConfig,
+  FilterConfig,
+  StackProcessor,
+  WebVitalMetric,
+  ResourceMetric,
+  ErrorMetric,
+  CustomMetric,
+  ContextInfo,
+  UserInfo,
+  SessionInfo,
+  ReportPayload,
+  MetricPayload,
+  WebVitalsFilter,
+  ResourceFilter,
+  ErrorFilter,
+  CustomFilter,
+} from './types';
 export { TrackEventOptions } from './collectors/custom';
