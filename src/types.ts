@@ -35,11 +35,21 @@ export interface ErrorSampleRule {
   sampleRate: number;
 }
 
-export interface ErrorFilter {
+export interface ErrorTypeSampleConfig {
   sampleRate?: number;
   excludeMessages?: string[];
-  excludeTypes?: ('js-error' | 'promise-rejection')[];
   sampleRules?: ErrorSampleRule[];
+}
+
+export interface ErrorFilter {
+  sampleRate?: number;
+  excludeTypes?: ('js-error' | 'promise-rejection')[];
+  excludeMessages?: string[];
+  sampleRules?: ErrorSampleRule[];
+  byType?: {
+    'js-error'?: ErrorTypeSampleConfig;
+    'promise-rejection'?: ErrorTypeSampleConfig;
+  };
 }
 
 export interface CustomFilter {
@@ -58,10 +68,25 @@ export type StackProcessor = (stack: string, error: Error | null) => string;
 
 export type DebugMode = boolean | 'silent';
 
+export type TransportType = 'beacon' | 'fetch' | 'xhr' | 'image' | 'custom' | 'auto';
+
+export interface RetryConfig {
+  enabled?: boolean;
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  backoffMultiplier?: number;
+  jitter?: boolean;
+}
+
+export type CustomTransport = (payload: ReportPayload, url: string) => boolean | Promise<boolean>;
+
 export interface PipelineConfig {
   reportUrl?: string;
   batchSize?: number;
-  sendStrategy?: 'beacon' | 'xhr' | 'auto';
+  transport?: TransportType;
+  customTransport?: CustomTransport;
+  retry?: RetryConfig;
   silent?: boolean;
 }
 
@@ -75,6 +100,8 @@ export interface PipelineConfigs {
 
 export type Plugin = (metric: MetricPayload) => MetricPayload | null | undefined | void;
 
+export type BatchPlugin = (payload: ReportPayload) => ReportPayload | null | undefined | void;
+
 export interface PerfMonitorConfig {
   appName: string;
   reportUrl: string;
@@ -85,6 +112,7 @@ export interface PerfMonitorConfig {
   filters: FilterConfig;
   stackProcessor?: StackProcessor;
   debug: DebugMode;
+  dryRun: boolean;
 }
 
 export interface WebVitalMetric {
@@ -135,4 +163,5 @@ export interface ReportPayload {
   context: ContextInfo;
   stayDuration: number;
   metrics: MetricPayload[];
+  [key: string]: unknown;
 }

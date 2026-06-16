@@ -1,5 +1,12 @@
 import { getConfig } from './config';
-import { WebVitalMetric, ResourceMetric, ErrorMetric, CustomMetric, ErrorSampleRule } from './types';
+import {
+  WebVitalMetric,
+  ResourceMetric,
+  ErrorMetric,
+  CustomMetric,
+  ErrorSampleRule,
+  ErrorTypeSampleConfig,
+} from './types';
 
 function samplePass(rate: number | undefined): boolean {
   if (rate === undefined || rate >= 1) return true;
@@ -84,20 +91,44 @@ export function shouldKeepError(metric: ErrorMetric): FilterResult {
     return { keep: false, reason: `excluded type: ${metric.type}` };
   }
 
+  const typeConfig: ErrorTypeSampleConfig | undefined = filter.byType?.[metric.type];
+
+  if (typeConfig?.excludeMessages && typeConfig.excludeMessages.length > 0) {
+    if (matchesPattern(metric.message, typeConfig.excludeMessages)) {
+      return { keep: false, reason: `${metric.type} exclude message` };
+    }
+  }
   if (filter.excludeMessages && filter.excludeMessages.length > 0) {
     if (matchesPattern(metric.message, filter.excludeMessages)) {
       return { keep: false, reason: `matched exclude message` };
     }
   }
 
-  if (filter.sampleRules && filter.sampleRules.length > 0) {
-    const matchingRule = findMatchingRule(metric.message, filter.sampleRules);
-    if (matchingRule) {
-      if (!samplePass(matchingRule.sampleRate)) {
-        return { keep: false, reason: `rule ${matchingRule.pattern} rate: ${matchingRule.sampleRate}` };
+  if (typeConfig?.sampleRules && typeConfig.sampleRules.length > 0) {
+    const rule = findMatchingRule(metric.message, typeConfig.sampleRules);
+    if (rule) {
+      if (!samplePass(rule.sampleRate)) {
+        return { keep: false, reason: `${metric.type} rule ${rule.pattern} rate: ${rule.sampleRate}` };
       }
-      return { keep: true, reason: `rule ${matchingRule.pattern} pass` };
+      return { keep: true, reason: `${metric.type} rule ${rule.pattern} pass` };
     }
+  }
+
+  if (filter.sampleRules && filter.sampleRules.length > 0) {
+    const rule = findMatchingRule(metric.message, filter.sampleRules);
+    if (rule) {
+      if (!samplePass(rule.sampleRate)) {
+        return { keep: false, reason: `rule ${rule.pattern} rate: ${rule.sampleRate}` };
+      }
+      return { keep: true, reason: `rule ${rule.pattern} pass` };
+    }
+  }
+
+  if (typeConfig?.sampleRate !== undefined) {
+    if (!samplePass(typeConfig.sampleRate)) {
+      return { keep: false, reason: `${metric.type} rate: ${typeConfig.sampleRate}` };
+    }
+    return { keep: true, reason: `${metric.type} sample pass` };
   }
 
   if (!samplePass(filter.sampleRate)) {

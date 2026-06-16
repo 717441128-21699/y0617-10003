@@ -1,5 +1,5 @@
-import { getPlugins } from './config';
-import { MetricPayload } from './types';
+import { getPlugins, getBatchPlugins } from './config';
+import { MetricPayload, ReportPayload } from './types';
 import { logDebug } from './debug';
 
 export function applyPlugins(metric: MetricPayload): MetricPayload | null {
@@ -12,13 +12,16 @@ export function applyPlugins(metric: MetricPayload): MetricPayload | null {
     try {
       const result = plugin(current);
       if (result === null || result === undefined) {
-        logDebug('dropped', current, 'plugin returned null/undefined');
+        logDebug('dropped', current, 'metric plugin returned null/undefined');
         return null;
       }
       current = result as MetricPayload;
     } catch (err) {
-      logDebug('dropped', current, `plugin error: ${err instanceof Error ? err.message : String(err)}`);
-      // continue with original metric, don't drop it just because plugin failed
+      logDebug(
+        'dropped',
+        current,
+        `metric plugin error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -34,4 +37,26 @@ export function applyPluginsToBatch(metrics: MetricPayload[]): MetricPayload[] {
     }
   }
   return result;
+}
+
+export function applyBatchPlugins(payload: ReportPayload): ReportPayload | null {
+  const plugins = getBatchPlugins();
+  let current: ReportPayload | null = payload;
+
+  for (const plugin of plugins) {
+    if (current === null) break;
+
+    try {
+      const result = plugin(current);
+      if (result === null || result === undefined) {
+        logDebug('dropped', null, 'batch plugin returned null/undefined - skipped batch');
+        return null;
+      }
+      current = result as ReportPayload;
+    } catch (err) {
+      logDebug('dropped', null, `batch plugin error: ${err instanceof Error ? err.message : String(err)} - continuing with original payload`);
+    }
+  }
+
+  return current;
 }

@@ -1,12 +1,24 @@
 import { getConfig } from './config';
-import { MetricPayload } from './types';
+import { MetricPayload, TransportType } from './types';
 
-export type DebugAction = 'collected' | 'filtered' | 'sampled' | 'sent' | 'queued' | 'dropped';
+export type DebugAction =
+  | 'collected'
+  | 'filtered'
+  | 'sampled'
+  | 'sent'
+  | 'queued'
+  | 'dropped'
+  | 'retry'
+  | 'transport'
+  | 'dryrun';
 
 export interface DebugEntry {
   action: DebugAction;
   metric: MetricPayload | null;
   reason?: string;
+  transport?: TransportType;
+  retryCount?: number;
+  payload?: unknown;
   timestamp: number;
 }
 
@@ -54,7 +66,12 @@ function getStyle(color: string): string {
   return `color: ${color}; font-weight: bold;`;
 }
 
-export function logDebug(action: DebugAction, metric: MetricPayload | null, reason?: string): void {
+export function logDebug(
+  action: DebugAction,
+  metric: MetricPayload | null,
+  reason?: string,
+  extra?: Partial<DebugEntry>,
+): void {
   if (!shouldLog()) return;
 
   const entry: DebugEntry = {
@@ -62,6 +79,7 @@ export function logDebug(action: DebugAction, metric: MetricPayload | null, reas
     metric,
     reason,
     timestamp: Date.now(),
+    ...extra,
   };
 
   if (debugLog.length >= MAX_DEBUG_LOG) {
@@ -104,11 +122,11 @@ export function logDebug(action: DebugAction, metric: MetricPayload | null, reas
       break;
     case 'sent':
       console.log(
-        `%c[PerfMonitor] %csent%c batch`,
+        `%c[PerfMonitor] %csent%c batch via ${extra?.transport || 'unknown'}`,
         getStyle('#999'),
         getStyle('#3498db'),
         getStyle(''),
-        formatted,
+        reason || formatted,
       );
       break;
     case 'queued':
@@ -117,7 +135,7 @@ export function logDebug(action: DebugAction, metric: MetricPayload | null, reas
         getStyle('#999'),
         getStyle('#9b59b6'),
         getStyle(''),
-        formatted,
+        reason || formatted,
       );
       break;
     case 'dropped':
@@ -127,6 +145,33 @@ export function logDebug(action: DebugAction, metric: MetricPayload | null, reas
         getStyle('#e74c3c'),
         getStyle(''),
         `${formatted} (reason: ${reason})`,
+      );
+      break;
+    case 'retry':
+      console.log(
+        `%c[PerfMonitor] %cretry%c #${extra?.retryCount || 1} via ${extra?.transport || 'unknown'}`,
+        getStyle('#999'),
+        getStyle('#e67e22'),
+        getStyle(''),
+        `${reason || ''}`,
+      );
+      break;
+    case 'transport':
+      console.log(
+        `%c[PerfMonitor] %ctransport%c ${extra?.transport || 'unknown'}`,
+        getStyle('#999'),
+        getStyle('#3498db'),
+        getStyle(''),
+        reason || '',
+      );
+      break;
+    case 'dryrun':
+      console.log(
+        `%c[PerfMonitor] %cdry-run%c would send`,
+        getStyle('#999'),
+        getStyle('#1abc9c'),
+        getStyle(''),
+        reason || '',
       );
       break;
   }

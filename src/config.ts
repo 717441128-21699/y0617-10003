@@ -1,10 +1,27 @@
-import { PerfMonitorConfig, FilterConfig, PipelineConfig, Environment, Plugin } from './types';
+import {
+  PerfMonitorConfig,
+  FilterConfig,
+  PipelineConfig,
+  Environment,
+  Plugin,
+  BatchPlugin,
+  RetryConfig,
+} from './types';
 
 const DEFAULT_FILTERS: FilterConfig = {
   webVitals: true,
   resources: true,
   errors: true,
   custom: true,
+};
+
+const DEFAULT_RETRY: RetryConfig = {
+  enabled: true,
+  maxRetries: 3,
+  baseDelayMs: 500,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+  jitter: true,
 };
 
 const DEFAULT_CONFIG: PerfMonitorConfig = {
@@ -15,6 +32,7 @@ const DEFAULT_CONFIG: PerfMonitorConfig = {
   reportInterval: 10000,
   filters: DEFAULT_FILTERS,
   debug: false,
+  dryRun: false,
 };
 
 let currentConfig: PerfMonitorConfig = {
@@ -23,6 +41,7 @@ let currentConfig: PerfMonitorConfig = {
 };
 
 const plugins: Plugin[] = [];
+const batchPlugins: BatchPlugin[] = [];
 
 export function setConfig(partial: Partial<PerfMonitorConfig>): void {
   if (partial.filters) {
@@ -44,7 +63,9 @@ export function getPipelineConfig(): PipelineConfig {
   return {
     reportUrl: envPipeline.reportUrl || currentConfig.reportUrl,
     batchSize: envPipeline.batchSize || 50,
-    sendStrategy: envPipeline.sendStrategy || 'auto',
+    transport: envPipeline.transport || 'auto',
+    customTransport: envPipeline.customTransport,
+    retry: envPipeline.retry ? { ...DEFAULT_RETRY, ...envPipeline.retry } : { ...DEFAULT_RETRY },
     silent: envPipeline.silent || false,
   };
 }
@@ -65,6 +86,10 @@ export function setDebug(debug: PerfMonitorConfig['debug']): void {
   currentConfig.debug = debug;
 }
 
+export function setDryRun(dryRun: boolean): void {
+  currentConfig.dryRun = dryRun;
+}
+
 export function addPlugin(plugin: Plugin): void {
   plugins.push(plugin);
 }
@@ -75,4 +100,16 @@ export function getPlugins(): Plugin[] {
 
 export function clearPlugins(): void {
   plugins.length = 0;
+}
+
+export function addBatchPlugin(plugin: BatchPlugin): void {
+  batchPlugins.push(plugin);
+}
+
+export function getBatchPlugins(): BatchPlugin[] {
+  return batchPlugins;
+}
+
+export function clearBatchPlugins(): void {
+  batchPlugins.length = 0;
 }
