@@ -1,30 +1,57 @@
 import { getConfig } from './config';
+import { getContext } from './context';
 import { drainMetrics, getBufferSize } from './store';
+import { savePendingPayload, drainPendingPayloads, isOnline } from './offline';
 import { ReportPayload } from './types';
 
 let timerId: ReturnType<typeof setInterval> | null = null;
 
-function send(payload: ReportPayload): void {
+function sendOnePayload(payload: ReportPayload): boolean {
   const config = getConfig();
-  if (!config.reportUrl) return;
+  if (!config.reportUrl) return false;
 
   const data = JSON.stringify(payload);
-  const sent = navigator.sendBeacon(config.reportUrl, data);
 
-  if (!sent) {
+  if (isOnline()) {
+    const sent = navigator.sendBeacon(config.reportUrl, data);
+    if (sent) return true;
+
     try {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', config.reportUrl, true);
+      xhr.open('POST', config.reportUrl, false);
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.send(data);
+      return xhr.status >= 200 && xhr.status < 300;
     } catch {
-      // silently fail
+      // XHR also failed
+    }
+  }
+
+  return false;
+}
+
+function send(payload: ReportPayload): void {
+  const success = sendOnePayload(payload);
+  if (!success) {
+    savePendingPayload(payload);
+  }
+}
+
+function retryPendingPayloads(): void {
+  const pending = drainPendingPayloads();
+  for (const payload of pending) {
+    if (!sendOnePayload(payload)) {
+      savePendingPayload(payload);
+      break;
     }
   }
 }
 
 function flush(): void {
-  if (getBufferSize() === 0) return;
+  if (getBufferSize() === 0) {
+    retryPendingPayloads();
+    return;
+  }
 
   const config = getConfig();
   const metrics = drainMetrics();
@@ -32,10 +59,12 @@ function flush(): void {
   const payload: ReportPayload = {
     appName: config.appName,
     timestamp: Date.now(),
+    context: getContext(),
     metrics,
   };
 
   send(payload);
+  retryPendingPayloads();
 }
 
 export function startReporter(): void {
@@ -45,12 +74,18 @@ export function startReporter(): void {
     clearInterval(timerId);
   }
 
+  retryPendingPayloads();
+
   timerId = setInterval(flush, config.reportInterval);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       flush();
     }
+  });
+
+  window.addEventListener('online', () => {
+    retryPendingPayloads();
   });
 }
 

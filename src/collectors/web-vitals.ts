@@ -56,47 +56,74 @@ function observeFID(): void {
   }
 }
 
+interface LayoutShiftEntry extends PerformanceEntry {
+  hadRecentInput: boolean;
+  value: number;
+  startTime: number;
+}
+
+const SESSION_GAP = 1000;
+const SESSION_LIMIT = 5000;
+
 function observeCLS(): void {
   try {
     let clsValue = 0;
     let sessionValue = 0;
-    let sessionEntries: PerformanceEntry[] = [];
+    let sessionStartTime = 0;
+    let sessionEntries: LayoutShiftEntry[] = [];
+    let reported = false;
 
     const po = new PerformanceObserver((entryList) => {
-      for (const entry of entryList.getEntries()) {
-        const layoutShift = entry as PerformanceEntry & { hadRecentInput: boolean; value: number };
-        if (layoutShift.hadRecentInput) continue;
+      for (const rawEntry of entryList.getEntries()) {
+        const entry = rawEntry as unknown as LayoutShiftEntry;
+        if (entry.hadRecentInput) continue;
 
-        const firstSessionEntry = sessionEntries.length === 0;
-        if (firstSessionEntry) {
+        const now = entry.startTime;
+
+        if (sessionEntries.length === 0) {
+          sessionStartTime = now;
+        }
+
+        if (now - sessionStartTime > SESSION_LIMIT || now - (sessionEntries[sessionEntries.length - 1]?.startTime ?? now) > SESSION_GAP) {
+          if (sessionValue > clsValue) {
+            clsValue = sessionValue;
+          }
           sessionValue = 0;
+          sessionStartTime = now;
           sessionEntries = [];
         }
 
-        sessionValue += layoutShift.value;
+        sessionValue += entry.value;
         sessionEntries.push(entry);
+      }
 
-        if (sessionValue > clsValue) {
-          clsValue = sessionValue;
-        }
+      if (sessionValue > clsValue) {
+        clsValue = sessionValue;
       }
     });
 
     po.observe({ type: 'layout-shift', buffered: true });
 
+    const finalizeCLS = (): void => {
+      if (reported) return;
+      reported = true;
+      if (sessionValue > clsValue) {
+        clsValue = sessionValue;
+      }
+      if (clsValue > 0) {
+        recordMetric('CLS', Math.round(clsValue * 1e6) / 1e6);
+      }
+    };
+
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
-        if (clsValue > 0) {
-          recordMetric('CLS', clsValue);
-        }
+        finalizeCLS();
       }
     });
 
-    setTimeout(() => {
-      if (clsValue > 0) {
-        recordMetric('CLS', clsValue);
-      }
-    }, 30000);
+    window.addEventListener('pagehide', () => {
+      finalizeCLS();
+    });
   } catch {
     // browser does not support CLS
   }

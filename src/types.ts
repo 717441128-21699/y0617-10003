@@ -31,10 +31,30 @@ export interface ErrorMetric {
   timestamp: number;
 }
 
-export type MetricPayload = WebVitalMetric | ResourceMetric | ErrorMetric;
+export interface CustomMetric {
+  type: 'custom';
+  name: string;
+  duration?: number;
+  extra?: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface UserInfo {
+  userId?: string;
+  [key: string]: unknown;
+}
+
+export interface ContextInfo {
+  user: UserInfo;
+  route: string;
+  tags: Record<string, string>;
+}
+
+export type MetricPayload = WebVitalMetric | ResourceMetric | ErrorMetric | CustomMetric;
 
 export interface ReportPayload {
   appName: string;
   timestamp: number;
+  context: ContextInfo;
   metrics: MetricPayload[];
 }

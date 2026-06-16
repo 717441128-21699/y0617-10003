@@ -6,20 +6,14 @@ function formatStack(stack: string | undefined): string {
   return stack.split('\n').slice(0, 10).join('\n');
 }
 
-function handleJSError(
-  message: string | Event,
-  source: string | undefined,
-  lineno: number | undefined,
-  colno: number | undefined,
-  error: Error | undefined,
-): void {
+function handleJSError(event: ErrorEvent): void {
   const metric: ErrorMetric = {
     type: 'js-error',
-    message: typeof message === 'string' ? message : (message as Event).type,
-    stack: formatStack(error?.stack),
-    filename: source || '',
-    lineno: lineno || 0,
-    colno: colno || 0,
+    message: event.message || '',
+    stack: formatStack(event.error?.stack),
+    filename: event.filename || '',
+    lineno: event.lineno || 0,
+    colno: event.colno || 0,
     timestamp: Date.now(),
   };
   addMetric(metric);
@@ -31,7 +25,7 @@ function handlePromiseRejection(event: PromiseRejectionEvent): void {
     type: 'promise-rejection',
     message: reason instanceof Error ? reason.message : String(reason),
     stack: formatStack(reason instanceof Error ? reason.stack : undefined),
-    filename: '',
+    filename: reason instanceof Error ? (reason.stack?.split('\n')[1]?.trim() || '') : '',
     lineno: 0,
     colno: 0,
     timestamp: Date.now(),
@@ -40,6 +34,6 @@ function handlePromiseRejection(event: PromiseRejectionEvent): void {
 }
 
 export function collectErrors(): void {
-  window.addEventListener('error', handleJSError as EventListener, true);
+  window.addEventListener('error', handleJSError, true);
   window.addEventListener('unhandledrejection', handlePromiseRejection, true);
 }
