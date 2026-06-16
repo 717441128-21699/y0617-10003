@@ -1,0 +1,21 @@
+{
+  "name": "perf-monitor-sdk",
+  "version": "1.0.0",
+  "description": "Frontend performance monitoring SDK - Core Web Vitals, resource timing, error tracking",
+  "main": "dist/perf-monitor-sdk.umd.js",
+  "module": "dist/perf-monitor-sdk.esm.js",
+  "types": "dist/types/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^12.3.0",
+    "rollup": "^4.18.0",
+    "tslib": "^2.6.0",
+    "typescript": "^5.5.0"
+  }
+}
