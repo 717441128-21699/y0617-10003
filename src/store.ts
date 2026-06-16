@@ -19,3 +19,11 @@ export function drainMetrics(): MetricPayload[] {
 export function getBufferSize(): number {
   return buffer.length;
 }
+
+export function peekMetrics(count: number): MetricPayload[] {
+  return buffer.slice(0, count);
+}
+
+export function consumeMetrics(count: number): void {
+  buffer.splice(0, count);
+}

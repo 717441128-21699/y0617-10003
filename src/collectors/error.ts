@@ -3,6 +3,7 @@ import { ErrorMetric } from '../types';
 import { getConfig } from '../config';
 import { shouldKeepError } from '../filter';
 import { getCurrentRoute } from '../context';
+import { logDebug } from '../debug';
 
 function processStack(stack: string | undefined, error: Error | null): string {
   if (!stack) return '';
@@ -30,9 +31,16 @@ function handleJSError(event: ErrorEvent): void {
     timestamp: Date.now(),
     route,
   };
-  if (shouldKeepError(metric)) {
-    addMetric(metric);
+
+  logDebug('collected', metric);
+
+  const result = shouldKeepError(metric);
+  if (!result.keep) {
+    logDebug('sampled', metric, result.reason);
+    return;
   }
+
+  addMetric(metric);
 }
 
 function handlePromiseRejection(event: PromiseRejectionEvent): void {
@@ -49,9 +57,16 @@ function handlePromiseRejection(event: PromiseRejectionEvent): void {
     timestamp: Date.now(),
     route,
   };
-  if (shouldKeepError(metric)) {
-    addMetric(metric);
+
+  logDebug('collected', metric);
+
+  const result = shouldKeepError(metric);
+  if (!result.keep) {
+    logDebug('sampled', metric, result.reason);
+    return;
   }
+
+  addMetric(metric);
 }
 
 export function collectErrors(): void {

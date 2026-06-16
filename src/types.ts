@@ -1,3 +1,5 @@
+export type Environment = 'development' | 'testing' | 'staging' | 'production' | string;
+
 export interface SessionInfo {
   sessionId: string;
   startTime: number;
@@ -28,10 +30,16 @@ export interface ResourceFilter {
   initiatorTypes?: string[];
 }
 
+export interface ErrorSampleRule {
+  pattern: string;
+  sampleRate: number;
+}
+
 export interface ErrorFilter {
   sampleRate?: number;
   excludeMessages?: string[];
   excludeTypes?: ('js-error' | 'promise-rejection')[];
+  sampleRules?: ErrorSampleRule[];
 }
 
 export interface CustomFilter {
@@ -48,13 +56,35 @@ export interface FilterConfig {
 
 export type StackProcessor = (stack: string, error: Error | null) => string;
 
+export type DebugMode = boolean | 'silent';
+
+export interface PipelineConfig {
+  reportUrl?: string;
+  batchSize?: number;
+  sendStrategy?: 'beacon' | 'xhr' | 'auto';
+  silent?: boolean;
+}
+
+export interface PipelineConfigs {
+  development?: PipelineConfig;
+  testing?: PipelineConfig;
+  staging?: PipelineConfig;
+  production?: PipelineConfig;
+  [env: string]: PipelineConfig | undefined;
+}
+
+export type Plugin = (metric: MetricPayload) => MetricPayload | null | undefined | void;
+
 export interface PerfMonitorConfig {
   appName: string;
   reportUrl: string;
+  environment: Environment;
+  pipelines?: PipelineConfigs;
   sampleRate: number;
   reportInterval: number;
   filters: FilterConfig;
   stackProcessor?: StackProcessor;
+  debug: DebugMode;
 }
 
 export interface WebVitalMetric {
@@ -99,6 +129,7 @@ export type MetricPayload = WebVitalMetric | ResourceMetric | ErrorMetric | Cust
 
 export interface ReportPayload {
   appName: string;
+  environment: Environment;
   timestamp: number;
   session: SessionInfo;
   context: ContextInfo;

@@ -2,6 +2,7 @@ import { addMetric } from '../store';
 import { CustomMetric } from '../types';
 import { shouldKeepCustom } from '../filter';
 import { getCurrentRoute } from '../context';
+import { logDebug } from '../debug';
 
 export interface TrackEventOptions {
   duration?: number;
@@ -20,13 +21,20 @@ export function trackEvent(name: string, options?: TrackEventOptions): void {
     route,
   };
 
+  logDebug('collected', metric);
+
   if (options?.sampleRate !== undefined) {
     if (options.sampleRate <= 0 || Math.random() >= options.sampleRate) {
+      logDebug('sampled', metric, `event sample rate: ${options.sampleRate}`);
       return;
     }
   }
 
-  if (shouldKeepCustom(metric)) {
-    addMetric(metric);
+  const result = shouldKeepCustom(metric);
+  if (!result.keep) {
+    logDebug('sampled', metric, result.reason);
+    return;
   }
+
+  addMetric(metric);
 }

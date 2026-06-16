@@ -2,6 +2,7 @@ import { addMetric } from '../store';
 import { WebVitalMetric } from '../types';
 import { shouldKeepWebVital } from '../filter';
 import { getCurrentRoute } from '../context';
+import { logDebug } from '../debug';
 
 type MetricType = 'LCP' | 'FID' | 'CLS';
 
@@ -26,9 +27,16 @@ function recordMetric(type: MetricType, value: number): void {
     rating: getRating(type, value),
     route,
   };
-  if (shouldKeepWebVital(metric)) {
-    addMetric(metric);
+
+  logDebug('collected', metric);
+
+  const result = shouldKeepWebVital(metric);
+  if (!result.keep) {
+    logDebug('sampled', metric, result.reason);
+    return;
   }
+
+  addMetric(metric);
 }
 
 function observeLCP(): void {

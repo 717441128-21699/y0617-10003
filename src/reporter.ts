@@ -1,29 +1,41 @@
-import { getConfig } from './config';
+import { getConfig, getPipelineConfig } from './config';
 import { getContext, getSession, getStayDuration } from './context';
-import { drainMetrics, getBufferSize } from './store';
+import { getBufferSize, peekMetrics, consumeMetrics } from './store';
 import { appendPendingPayload, peekFirstPending, shiftFirstPending, getPendingCount, isOnline } from './offline';
-import { ReportPayload } from './types';
+import { applyPluginsToBatch } from './plugin';
+import { ReportPayload, MetricPayload } from './types';
+import { logDebug } from './debug';
 
 let timerId: ReturnType<typeof setInterval> | null = null;
 
 function sendOnePayload(payload: ReportPayload): boolean {
-  const config = getConfig();
-  if (!config.reportUrl) return false;
+  const pipeline = getPipelineConfig();
+  if (!pipeline.reportUrl) return false;
+  if (pipeline.silent) return true;
 
   const data = JSON.stringify(payload);
+  const strategy = pipeline.sendStrategy;
 
   if (isOnline()) {
-    const sent = navigator.sendBeacon(config.reportUrl, data);
-    if (sent) return true;
+    if (strategy === 'beacon' || strategy === 'auto') {
+      try {
+        const sent = navigator.sendBeacon(pipeline.reportUrl, data);
+        if (sent) return true;
+      } catch {
+        // beacon failed, fall through to XHR
+      }
+    }
 
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', config.reportUrl, false);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.send(data);
-      return xhr.status >= 200 && xhr.status < 300;
-    } catch {
-      // XHR also failed
+    if (strategy === 'xhr' || strategy === 'auto') {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', pipeline.reportUrl, false);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(data);
+        return xhr.status >= 200 && xhr.status < 300;
+      } catch {
+        // XHR also failed
+      }
     }
   }
 
@@ -32,15 +44,19 @@ function sendOnePayload(payload: ReportPayload): boolean {
 
 function sendOrPersist(payload: ReportPayload): void {
   const success = sendOnePayload(payload);
-  if (!success) {
+  if (success) {
+    logDebug('sent', null, `batch of ${payload.metrics.length} metrics`);
+  } else {
     appendPendingPayload(payload);
+    logDebug('queued', null, `batch of ${payload.metrics.length} metrics (offline)`);
   }
 }
 
-function buildPayload(metrics: ReportPayload['metrics']): ReportPayload {
+function buildPayload(metrics: MetricPayload[]): ReportPayload {
   const config = getConfig();
   return {
     appName: config.appName,
+    environment: config.environment,
     timestamp: Date.now(),
     session: getSession(),
     context: getContext(),
@@ -61,6 +77,7 @@ function retryPendingPayloads(): void {
     if (success) {
       shiftFirstPending();
       retried++;
+      logDebug('sent', null, `retry succeeded, ${getPendingCount()} remaining`);
     } else {
       break;
     }
@@ -68,15 +85,32 @@ function retryPendingPayloads(): void {
 }
 
 function flush(): void {
+  const pipeline = getPipelineConfig();
+  const batchSize = pipeline.batchSize ?? 50;
+
   if (getBufferSize() === 0) {
     retryPendingPayloads();
     return;
   }
 
-  const metrics = drainMetrics();
-  const payload = buildPayload(metrics);
+  let remaining = getBufferSize();
+  while (remaining > 0) {
+    const count = Math.min(batchSize, remaining);
+    const rawMetrics = peekMetrics(count);
+    const metrics = applyPluginsToBatch(rawMetrics);
 
-  sendOrPersist(payload);
+    consumeMetrics(count);
+
+    if (metrics.length === 0) {
+      remaining = getBufferSize();
+      continue;
+    }
+
+    const payload = buildPayload(metrics);
+    sendOrPersist(payload);
+    remaining = getBufferSize();
+  }
+
   retryPendingPayloads();
 }
 

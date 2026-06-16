@@ -2,6 +2,7 @@ import { addMetric } from '../store';
 import { ResourceMetric } from '../types';
 import { shouldKeepResource } from '../filter';
 import { getCurrentRoute } from '../context';
+import { logDebug } from '../debug';
 
 function extractResourceEntry(entry: PerformanceResourceTiming, route: string): ResourceMetric | null {
   const initiatorType = entry.initiatorType;
@@ -31,7 +32,13 @@ function recordExistingResources(): void {
   const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
   for (const entry of entries) {
     const metric = extractResourceEntry(entry, route);
-    if (metric && shouldKeepResource(metric)) {
+    if (metric) {
+      logDebug('collected', metric);
+      const result = shouldKeepResource(metric);
+      if (!result.keep) {
+        logDebug('filtered', metric, result.reason);
+        continue;
+      }
       addMetric(metric);
     }
   }
@@ -44,7 +51,13 @@ function observeNewResources(): void {
       const entries = entryList.getEntries() as PerformanceResourceTiming[];
       for (const entry of entries) {
         const metric = extractResourceEntry(entry, route);
-        if (metric && shouldKeepResource(metric)) {
+        if (metric) {
+          logDebug('collected', metric);
+          const result = shouldKeepResource(metric);
+          if (!result.keep) {
+            logDebug('filtered', metric, result.reason);
+            continue;
+          }
           addMetric(metric);
         }
       }

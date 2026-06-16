@@ -1,12 +1,43 @@
-import { setConfig, shouldSample } from './config';
-import { initSession } from './context';
+import {
+  setConfig,
+  shouldSample,
+  setEnvironment,
+  setDebug,
+  addPlugin,
+  clearPlugins,
+  getConfig,
+} from './config';
+import { initSession, setUser, setRoute, setTags, watchRouteChanges } from './context';
 import { collectWebVitals } from './collectors/web-vitals';
 import { collectResources } from './collectors/resource';
 import { collectErrors } from './collectors/error';
 import { trackEvent, TrackEventOptions } from './collectors/custom';
 import { startReporter, stopReporter } from './reporter';
-import { setUser, setRoute, setTags, watchRouteChanges } from './context';
-import { PerfMonitorConfig, FilterConfig, StackProcessor } from './types';
+import { getDebugLog, clearDebugLog } from './debug';
+import {
+  PerfMonitorConfig,
+  FilterConfig,
+  StackProcessor,
+  PipelineConfig,
+  PipelineConfigs,
+  Plugin,
+  DebugMode,
+  Environment,
+  ErrorSampleRule,
+  WebVitalMetric,
+  ResourceMetric,
+  ErrorMetric,
+  CustomMetric,
+  ContextInfo,
+  UserInfo,
+  SessionInfo,
+  ReportPayload,
+  MetricPayload,
+  WebVitalsFilter,
+  ResourceFilter,
+  ErrorFilter,
+  CustomFilter,
+} from './types';
 
 let started = false;
 
@@ -35,13 +66,20 @@ export function destroy(): void {
   started = false;
 }
 
-export { setConfig, getConfig } from './config';
-export { setUser, setRoute, setTags } from './context';
-export { trackEvent } from './collectors/custom';
+export { setConfig, getConfig, setEnvironment, setDebug, addPlugin, clearPlugins };
+export { setUser, setRoute, setTags };
+export { trackEvent };
+export { getDebugLog, clearDebugLog };
 export {
   PerfMonitorConfig,
   FilterConfig,
   StackProcessor,
+  PipelineConfig,
+  PipelineConfigs,
+  Plugin,
+  DebugMode,
+  Environment,
+  ErrorSampleRule,
   WebVitalMetric,
   ResourceMetric,
   ErrorMetric,
@@ -55,5 +93,5 @@ export {
   ResourceFilter,
   ErrorFilter,
   CustomFilter,
-} from './types';
-export { TrackEventOptions } from './collectors/custom';
+};
+export { TrackEventOptions };
